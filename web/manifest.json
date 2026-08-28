@@ -1,0 +1,37 @@
+{
+    "name": "مدیریت ساختمان",
+    "short_name": "مدیریت ساختمان",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0D7A7A",
+    "theme_color": "#0D7A7A",
+    "description": "اپلیکیشن مدیریت ساختمان - مدیریت واحدها، شارژ، اعلانات و درخواست‌ها",
+    "orientation": "portrait-primary",
+    "dir": "rtl",
+    "lang": "fa",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
