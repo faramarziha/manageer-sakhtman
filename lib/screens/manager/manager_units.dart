@@ -15,7 +15,7 @@ class ManagerUnitsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final floors = <int, List<Unit>>{};
-    for (final u in store.units) {
+    for (final u in store.buildingUnits) {
       floors.putIfAbsent(u.floor, () => []).add(u);
     }
     final sortedFloors = floors.keys.toList()..sort();

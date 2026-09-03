@@ -4,6 +4,8 @@ import '../../data/app_store.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/persian.dart';
 import '../../widgets/common_widgets.dart';
+import '../subscription_screen.dart';
+import 'manager_notices.dart';
 
 /// داشبورد مدیر ساختمان
 class ManagerDashboard extends StatelessWidget {
@@ -13,11 +15,21 @@ class ManagerDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final progress = store.collectionProgress;
+    final building = store.currentBuilding;
+    final sub = store.currentSubscription;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('داشبورد مدیر'),
+        title: Text(building?.name ?? 'داشبورد مدیر'),
         actions: [
+          IconButton(
+            tooltip: 'اعلانات ساختمان',
+            icon: const Icon(Icons.campaign_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ManagerNoticesPage()),
+            ),
+          ),
           IconButton(
             tooltip: 'بازنشانی داده‌های نمونه',
             icon: const Icon(Icons.refresh_rounded),
@@ -34,6 +46,11 @@ class ManagerDashboard extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // بنر دوره آزمایشی
+            if (sub != null && sub.isTrial && sub.isActive) ...[
+              _TrialBanner(daysLeft: sub.daysLeft),
+              const SizedBox(height: 16),
+            ],
             // کارت اصلی وصول شارژ
             Container(
               padding: const EdgeInsets.all(20),
@@ -138,7 +155,7 @@ class ManagerDashboard extends StatelessWidget {
                 StatCard(
                   icon: Icons.campaign_rounded,
                   title: 'اعلانات فعال',
-                  value: Persian.digits(store.notices.length),
+                  value: Persian.digits(store.buildingNotices.length),
                   color: AppColors.secondary,
                 ),
               ],
@@ -147,7 +164,7 @@ class ManagerDashboard extends StatelessWidget {
             // آخرین اعلانات
             const SectionHeader(title: 'آخرین اعلانات'),
             const SizedBox(height: 10),
-            ...store.notices.take(3).map(
+            ...store.buildingNotices.take(3).map(
                   (n) => Card(
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ListTile(
@@ -187,7 +204,7 @@ class ManagerDashboard extends StatelessWidget {
             // درخواست‌های در انتظار
             const SectionHeader(title: 'درخواست‌های نیازمند رسیدگی'),
             const SizedBox(height: 10),
-            ...store.requests
+            ...store.buildingRequests
                 .where((r) => r.status.index == 0)
                 .take(3)
                 .map(
@@ -222,6 +239,55 @@ class ManagerDashboard extends StatelessWidget {
                 ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// بنر دوره آزمایشی در داشبورد مدیر
+class _TrialBanner extends StatelessWidget {
+  final int daysLeft;
+  const _TrialBanner({required this.daysLeft});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.warningLight,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.card_giftcard_rounded,
+              color: AppColors.warning, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'دوره آزمایشی: ${Persian.digits(daysLeft)} روز باقی‌مانده',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.warning,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: Size.zero,
+            ),
+            child: const Text(
+              'خرید اشتراک',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }

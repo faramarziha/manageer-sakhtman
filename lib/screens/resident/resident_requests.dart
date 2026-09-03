@@ -14,7 +14,7 @@ class ResidentRequestsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final unit = store.currentUnit!;
-    final list = store.requests.where((r) => r.unitId == unit.id).toList()
+    final list = store.buildingRequests.where((r) => r.unitId == unit.id).toList()
       ..sort((a, b) => b.date.compareTo(a.date));
 
     return Scaffold(

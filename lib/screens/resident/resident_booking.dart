@@ -20,7 +20,7 @@ class _ResidentBookingPageState extends State<ResidentBookingPage> {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final unit = store.currentUnit!;
-    final myBookings = store.bookings.where((b) => b.unitId == unit.id).toList()
+    final myBookings = store.buildingBookings.where((b) => b.unitId == unit.id).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
 
     return Scaffold(

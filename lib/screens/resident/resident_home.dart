@@ -14,8 +14,9 @@ class ResidentHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
     final unit = store.currentUnit!;
+    final building = store.currentBuilding;
     final charge = store.currentChargeOfUnit(unit.id);
-    final myRequests = store.requests.where((r) => r.unitId == unit.id).toList();
+    final myRequests = store.buildingRequests.where((r) => r.unitId == unit.id).toList();
     final openRequests =
         myRequests.where((r) => r.status != RequestStatus.done).length;
 
@@ -48,7 +49,7 @@ class ResidentHome extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'واحد ${Persian.digits(unit.number)} • ${AppStore.buildingName}',
+                        'واحد ${Persian.digits(unit.number)} • ${building?.name ?? ''}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -90,7 +91,7 @@ class ResidentHome extends StatelessWidget {
                 StatCard(
                   icon: Icons.event_available_rounded,
                   title: 'رزروهای من',
-                  value: Persian.digits(store.bookings
+                  value: Persian.digits(store.buildingBookings
                       .where((b) => b.unitId == unit.id)
                       .length),
                   color: AppColors.secondary,
@@ -98,7 +99,7 @@ class ResidentHome extends StatelessWidget {
                 StatCard(
                   icon: Icons.campaign_rounded,
                   title: 'اعلانات',
-                  value: Persian.digits(store.notices.length),
+                  value: Persian.digits(store.buildingNotices.length),
                   color: AppColors.accent,
                 ),
               ],
@@ -107,7 +108,7 @@ class ResidentHome extends StatelessWidget {
             // آخرین اعلانات
             const SectionHeader(title: 'آخرین اعلانات ساختمان'),
             const SizedBox(height: 10),
-            ...store.notices.take(3).map(
+            ...store.buildingNotices.take(3).map(
                   (n) => Card(
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ListTile(

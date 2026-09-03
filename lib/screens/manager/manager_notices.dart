@@ -24,16 +24,16 @@ class ManagerNoticesPage extends StatelessWidget {
         onPressed: () => _showAddNoticeDialog(context),
       ),
       body: SafeArea(
-        child: store.notices.isEmpty
+        child: store.buildingNotices.isEmpty
             ? const EmptyState(
                 icon: Icons.campaign_outlined,
                 message: 'هنوز اعلانی ثبت نشده است',
               )
             : ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: store.notices.length,
+                itemCount: store.buildingNotices.length,
                 itemBuilder: (ctx, i) {
-                  final n = store.notices[i];
+                  final n = store.buildingNotices[i];
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     child: Padding(

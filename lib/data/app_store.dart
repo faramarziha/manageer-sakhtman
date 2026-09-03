@@ -1,26 +1,15 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 import '../models/models.dart';
 
-/// لایه داده اپلیکیشن - ذخیره‌سازی محلی با Hive + داده‌های نمونه ایرانی
+/// لایه داده اپلیکیشن - معماری چندساختمانی (Multi-Tenant)
+/// ذخیره‌سازی محلی با Hive - آماده اتصال به بک‌اند ابری در آینده
 class AppStore extends ChangeNotifier {
-  static const String _boxName = 'building_data';
+  static const String _boxName = 'building_data_v2';
 
-  static const String buildingName = 'برج مهر سعادت‌آباد';
-  static const String buildingAddress = 'تهران، سعادت‌آباد، بلوار دریا، برج مهر';
-
-  late Box _box;
-
-  List<Unit> units = [];
-  List<Charge> charges = [];
-  List<Notice> notices = [];
-  List<MaintenanceRequest> requests = [];
-  List<Booking> bookings = [];
-
-  /// واحد جاری ساکن لاگین‌شده (واحد ۱۰۲)
-  static const String currentResidentUnitId = 'u_102';
-
+  // ---------------- ثابت‌ها ----------------
   static const List<Facility> facilities = [
     Facility(id: 'f_hall', name: 'سالن اجتماعات', icon: 'hall'),
     Facility(id: 'f_pool', name: 'استخر و سونا', icon: 'pool'),
@@ -30,24 +19,44 @@ class AppStore extends ChangeNotifier {
   ];
 
   static const List<String> timeSlots = [
-    '۸ تا ۱۰',
-    '۱۰ تا ۱۲',
-    '۱۲ تا ۱۴',
-    '۱۴ تا ۱۶',
-    '۱۶ تا ۱۸',
-    '۱۸ تا ۲۰',
-    '۲۰ تا ۲۲',
+    '۸ تا ۱۰', '۱۰ تا ۱۲', '۱۲ تا ۱۴', '۱۴ تا ۱۶', '۱۶ تا ۱۸', '۱۸ تا ۲۰', '۲۰ تا ۲۲',
   ];
 
   static const List<String> requestCategories = [
-    'تاسیسات',
-    'برق',
-    'آسانسور',
-    'نظافت',
-    'امنیت',
-    'سایر',
+    'تاسیسات', 'برق', 'آسانسور', 'نظافت', 'امنیت', 'سایر',
   ];
 
+  static const List<String> iranianCities = [
+    'تهران', 'مشهد', 'اصفهان', 'شیراز', 'تبریز', 'کرج', 'قم', 'اهواز',
+    'کرمانشاه', 'ارومیه', 'رشت', 'زاهدان', 'همدان', 'کرمان', 'یزد',
+    'اردبیل', 'بندرعباس', 'اراک', 'قزوین', 'زنجان', 'سنندج', 'گرگان',
+    'ساری', 'خرم‌آباد', 'ایلام', 'بوشهر', 'یاسوج', 'شهرکرد', 'بجنورد',
+    'سمنان', 'بیرجند',
+  ];
+
+  /// مدت دوره آزمایشی رایگان
+  static const int trialDays = 14;
+
+  // ---------------- وضعیت ----------------
+  late Box _box;
+
+  // داده‌های سراسری
+  List<Building> buildings = [];
+  List<User> users = [];
+  List<Subscription> subscriptions = [];
+
+  // داده‌های ساختمان جاری (تننت فعال)
+  List<Unit> units = [];
+  List<Charge> charges = [];
+  List<Notice> notices = [];
+  List<MaintenanceRequest> requests = [];
+  List<Booking> bookings = [];
+
+  // جلسه کاربر
+  User? currentUser;
+  String? activeBuildingId;
+
+  // ---------------- مقداردهی ----------------
   Future<void> init() async {
     await Hive.initFlutter();
     _box = await Hive.openBox(_boxName);
@@ -61,61 +70,123 @@ class AppStore extends ChangeNotifier {
   }
 
   void _load() {
-    units = (_box.get('units') as List)
-        .map((e) => Unit.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
-    charges = (_box.get('charges') as List)
-        .map((e) => Charge.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
-    notices = (_box.get('notices') as List)
-        .map((e) => Notice.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
-    requests = (_box.get('requests') as List)
-        .map((e) => MaintenanceRequest.fromMap(Map<String, dynamic>.from(e)))
-        .toList();
-    bookings = (_box.get('bookings') as List)
-        .map((e) => Booking.fromMap(Map<String, dynamic>.from(e)))
+    buildings = _readList('buildings', Building.fromMap);
+    users = _readList('users', User.fromMap);
+    subscriptions = _readList('subscriptions', Subscription.fromMap);
+    units = _readList('units', Unit.fromMap);
+    charges = _readList('charges', Charge.fromMap);
+    notices = _readList('notices', Notice.fromMap);
+    requests = _readList('requests', MaintenanceRequest.fromMap);
+    bookings = _readList('bookings', Booking.fromMap);
+
+    final uid = _box.get('currentUserId');
+    if (uid != null) {
+      try {
+        currentUser = users.firstWhere((u) => u.id == uid);
+      } catch (_) {}
+    }
+    activeBuildingId = _box.get('activeBuildingId');
+  }
+
+  List<T> _readList<T>(String key, T Function(Map) fromMap) {
+    final raw = _box.get(key);
+    if (raw == null) return [];
+    return (raw as List)
+        .map((e) => fromMap(Map<String, dynamic>.from(e)))
         .toList();
   }
 
   Future<void> _save() async {
+    await _box.put('buildings', buildings.map((e) => e.toMap()).toList());
+    await _box.put('users', users.map((e) => e.toMap()).toList());
+    await _box.put('subscriptions', subscriptions.map((e) => e.toMap()).toList());
     await _box.put('units', units.map((e) => e.toMap()).toList());
     await _box.put('charges', charges.map((e) => e.toMap()).toList());
     await _box.put('notices', notices.map((e) => e.toMap()).toList());
     await _box.put('requests', requests.map((e) => e.toMap()).toList());
     await _box.put('bookings', bookings.map((e) => e.toMap()).toList());
+    await _box.put('currentUserId', currentUser?.id);
+    await _box.put('activeBuildingId', activeBuildingId);
   }
 
   Future<void> resetData() async {
+    final keepUser = currentUser;
+    final keepBuilding = activeBuildingId;
     _seed();
+    currentUser = keepUser;
+    activeBuildingId = keepBuilding;
     await _save();
     notifyListeners();
   }
 
-  // ---------------- داده‌های نمونه ایرانی ----------------
+  // ---------------- داده‌های نمونه ----------------
   void _seed() {
     final now = DateTime.now();
+    const bId = 'b_mehr';
+
+    buildings = [
+      Building(
+        id: bId,
+        name: 'برج مهر سعادت‌آباد',
+        address: 'بلوار دریا، برج مهر',
+        city: 'تهران',
+        unitsCount: 10,
+        managerPhone: '09121234567',
+        inviteCode: 'MEHR24',
+        createdAt: now.subtract(const Duration(days: 90)),
+      ),
+    ];
+
+    users = [
+      User(
+        id: 'usr_manager',
+        phone: '09121234567',
+        fullName: 'مهندس بهنام شریفی',
+        role: UserRole.manager,
+        buildingId: bId,
+        createdAt: now.subtract(const Duration(days: 90)),
+      ),
+      User(
+        id: 'usr_resident',
+        phone: '09129876543',
+        fullName: 'خانم زهرا حسینی',
+        role: UserRole.resident,
+        buildingId: bId,
+        unitId: 'u_102',
+        createdAt: now.subtract(const Duration(days: 80)),
+      ),
+    ];
+
+    subscriptions = [
+      Subscription(
+        id: 'sub_demo',
+        buildingId: bId,
+        plan: PlanType.pro,
+        startedAt: now.subtract(const Duration(days: 4)),
+        expiresAt: now.add(const Duration(days: trialDays - 4)),
+        isTrial: true,
+      ),
+    ];
+
+    units = const [
+      Unit(id: 'u_101', buildingId: bId, number: 101, floor: 1, ownerName: 'آقای محمد رضایی', phone: '09121234567', residents: 3, area: 95, isOccupied: true, monthlyCharge: 850000),
+      Unit(id: 'u_102', buildingId: bId, number: 102, floor: 1, ownerName: 'خانم زهرا حسینی', phone: '09129876543', residents: 2, area: 88, isOccupied: true, monthlyCharge: 850000),
+      Unit(id: 'u_201', buildingId: bId, number: 201, floor: 2, ownerName: 'آقای علی کریمی', phone: '09121112233', residents: 4, area: 110, isOccupied: true, monthlyCharge: 950000),
+      Unit(id: 'u_202', buildingId: bId, number: 202, floor: 2, ownerName: 'خانم مریم احمدی', phone: '09124445566', residents: 2, area: 92, isOccupied: true, monthlyCharge: 850000),
+      Unit(id: 'u_301', buildingId: bId, number: 301, floor: 3, ownerName: 'آقای حسن موسوی', phone: '09127778899', residents: 3, area: 105, isOccupied: true, monthlyCharge: 950000),
+      Unit(id: 'u_302', buildingId: bId, number: 302, floor: 3, ownerName: 'آقای رضا صادقی', phone: '09123334455', residents: 0, area: 98, isOccupied: false, monthlyCharge: 850000),
+      Unit(id: 'u_401', buildingId: bId, number: 401, floor: 4, ownerName: 'خانم فاطمه نجفی', phone: '09126667788', residents: 5, area: 120, isOccupied: true, monthlyCharge: 1100000),
+      Unit(id: 'u_402', buildingId: bId, number: 402, floor: 4, ownerName: 'آقای مهدی جعفری', phone: '09129990011', residents: 3, area: 100, isOccupied: true, monthlyCharge: 950000),
+      Unit(id: 'u_501', buildingId: bId, number: 501, floor: 5, ownerName: 'خانم سارا محمدی', phone: '09122223344', residents: 2, area: 115, isOccupied: true, monthlyCharge: 1100000),
+      Unit(id: 'u_502', buildingId: bId, number: 502, floor: 5, ownerName: 'آقای امیر عزیزی', phone: '09125556677', residents: 4, area: 108, isOccupied: true, monthlyCharge: 950000),
+    ];
+
     final currentMonth = _currentJalaliMonth();
     final previousMonth = _previousJalaliMonth();
 
-    units = const [
-      Unit(id: 'u_101', number: 101, floor: 1, ownerName: 'آقای محمد رضایی', phone: '09121234567', residents: 3, area: 95, isOccupied: true, monthlyCharge: 850000),
-      Unit(id: 'u_102', number: 102, floor: 1, ownerName: 'خانم زهرا حسینی', phone: '09129876543', residents: 2, area: 88, isOccupied: true, monthlyCharge: 850000),
-      Unit(id: 'u_201', number: 201, floor: 2, ownerName: 'آقای علی کریمی', phone: '09121112233', residents: 4, area: 110, isOccupied: true, monthlyCharge: 950000),
-      Unit(id: 'u_202', number: 202, floor: 2, ownerName: 'خانم مریم احمدی', phone: '09124445566', residents: 2, area: 92, isOccupied: true, monthlyCharge: 850000),
-      Unit(id: 'u_301', number: 301, floor: 3, ownerName: 'آقای حسن موسوی', phone: '09127778899', residents: 3, area: 105, isOccupied: true, monthlyCharge: 950000),
-      Unit(id: 'u_302', number: 302, floor: 3, ownerName: 'آقای رضا صادقی', phone: '09123334455', residents: 0, area: 98, isOccupied: false, monthlyCharge: 850000),
-      Unit(id: 'u_401', number: 401, floor: 4, ownerName: 'خانم فاطمه نجفی', phone: '09126667788', residents: 5, area: 120, isOccupied: true, monthlyCharge: 1100000),
-      Unit(id: 'u_402', number: 402, floor: 4, ownerName: 'آقای مهدی جعفری', phone: '09129990011', residents: 3, area: 100, isOccupied: true, monthlyCharge: 950000),
-      Unit(id: 'u_501', number: 501, floor: 5, ownerName: 'خانم سارا محمدی', phone: '09122223344', residents: 2, area: 115, isOccupied: true, monthlyCharge: 1100000),
-      Unit(id: 'u_502', number: 502, floor: 5, ownerName: 'آقای امیر عزیزی', phone: '09125556677', residents: 4, area: 108, isOccupied: true, monthlyCharge: 950000),
-    ];
-
-    // شارژ ماه جاری + ماه قبل
     charges = [];
     for (var i = 0; i < units.length; i++) {
       final u = units[i];
-      // ماه قبل: همه پرداخت شده
       charges.add(Charge(
         id: 'c_prev_$i',
         unitId: u.id,
@@ -126,18 +197,11 @@ class AppStore extends ChangeNotifier {
         paidAt: now.subtract(Duration(days: 38 + i)),
       ));
     }
-    // ماه جاری: ترکیب وضعیت‌ها
     const currentStatuses = [
-      ChargeStatus.paid,      // 101
-      ChargeStatus.pending,   // 102 (ساکن فعلی - قابل پرداخت در دمو)
-      ChargeStatus.paid,      // 201
-      ChargeStatus.overdue,   // 202
-      ChargeStatus.paid,      // 301
-      ChargeStatus.overdue,   // 302
-      ChargeStatus.paid,      // 401
-      ChargeStatus.pending,   // 402
-      ChargeStatus.paid,      // 501
-      ChargeStatus.pending,   // 502
+      ChargeStatus.paid, ChargeStatus.pending, ChargeStatus.paid,
+      ChargeStatus.overdue, ChargeStatus.paid, ChargeStatus.overdue,
+      ChargeStatus.paid, ChargeStatus.pending, ChargeStatus.paid,
+      ChargeStatus.pending,
     ];
     for (var i = 0; i < units.length; i++) {
       final u = units[i];
@@ -149,126 +213,250 @@ class AppStore extends ChangeNotifier {
         amount: u.monthlyCharge,
         status: st,
         dueDate: now.add(const Duration(days: 10)),
-        paidAt: st == ChargeStatus.paid
-            ? now.subtract(Duration(days: i + 2))
-            : null,
+        paidAt: st == ChargeStatus.paid ? now.subtract(Duration(days: i + 2)) : null,
       ));
     }
 
     notices = [
-      Notice(
-        id: 'n_1',
-        title: 'جلسه مجمع عمومی ساختمان',
-        body: 'جلسه مجمع عمومی سالانه روز جمعه ساعت ۱۷ در سالن اجتماعات برگزار می‌شود. حضور کلیه مالکین الزامی است. دستور جلسه: بررسی صورت‌های مالی، انتخاب مدیر جدید و تصمیم‌گیری درباره نقاشی نمای ساختمان.',
-        date: now.subtract(const Duration(hours: 5)),
-        isImportant: true,
-      ),
-      Notice(
-        id: 'n_2',
-        title: 'سرویس دوره‌ای آسانسور',
-        body: 'سرویس و بازدید فنی آسانسورها روز شنبه از ساعت ۹ تا ۱۲ انجام می‌شود. در این بازه زمانی آسانسور شماره ۲ خارج از سرویس خواهد بود.',
-        date: now.subtract(const Duration(days: 1)),
-      ),
-      Notice(
-        id: 'n_3',
-        title: 'قطعی موقت آب ساختمان',
-        body: 'به علت شستشوی مخزن آب، روز سه‌شنبه از ساعت ۱۰ تا ۱۳ آب ساختمان قطع خواهد بود. لطفاً هماهنگی لازم را انجام دهید.',
-        date: now.subtract(const Duration(days: 2)),
-        isImportant: true,
-      ),
-      Notice(
-        id: 'n_4',
-        title: 'یادآوری پرداخت شارژ ماهانه',
-        body: 'ساکنین محترم، خواهشمند است شارژ ماه جاری را حداکثر تا پایان ماه از طریق اپلیکیشن یا به شماره کارت مدیر ساختمان پرداخت نمایید.',
-        date: now.subtract(const Duration(days: 4)),
-      ),
-      Notice(
-        id: 'n_5',
-        title: 'نظافت هفتگی مشاعات',
-        body: 'نظافت راه‌پله‌ها و لابی هر هفته روزهای شنبه و چهارشنبه انجام می‌شود. از قرار دادن اشیا در راه‌پله و پارکینگ خودداری فرمایید.',
-        date: now.subtract(const Duration(days: 6)),
-      ),
+      Notice(id: 'n_1', buildingId: bId, title: 'جلسه مجمع عمومی ساختمان', body: 'جلسه مجمع عمومی سالانه روز جمعه ساعت ۱۷ در سالن اجتماعات برگزار می‌شود. حضور کلیه مالکین الزامی است. دستور جلسه: بررسی صورت‌های مالی، انتخاب مدیر جدید و تصمیم‌گیری درباره نقاشی نمای ساختمان.', date: now.subtract(const Duration(hours: 5)), isImportant: true),
+      Notice(id: 'n_2', buildingId: bId, title: 'سرویس دوره‌ای آسانسور', body: 'سرویس و بازدید فنی آسانسورها روز شنبه از ساعت ۹ تا ۱۲ انجام می‌شود. در این بازه زمانی آسانسور شماره ۲ خارج از سرویس خواهد بود.', date: now.subtract(const Duration(days: 1))),
+      Notice(id: 'n_3', buildingId: bId, title: 'قطعی موقت آب ساختمان', body: 'به علت شستشوی مخزن آب، روز سه‌شنبه از ساعت ۱۰ تا ۱۳ آب ساختمان قطع خواهد بود. لطفاً هماهنگی لازم را انجام دهید.', date: now.subtract(const Duration(days: 2)), isImportant: true),
+      Notice(id: 'n_4', buildingId: bId, title: 'یادآوری پرداخت شارژ ماهانه', body: 'ساکنین محترم، خواهشمند است شارژ ماه جاری را حداکثر تا پایان ماه از طریق اپلیکیشن یا به شماره کارت مدیر ساختمان پرداخت نمایید.', date: now.subtract(const Duration(days: 4))),
+      Notice(id: 'n_5', buildingId: bId, title: 'نظافت هفتگی مشاعات', body: 'نظافت راه‌پله‌ها و لابی هر هفته روزهای شنبه و چهارشنبه انجام می‌شود. از قرار دادن اشیا در راه‌پله و پارکینگ خودداری فرمایید.', date: now.subtract(const Duration(days: 6))),
     ];
 
     requests = [
-      MaintenanceRequest(
-        id: 'r_1',
-        unitId: 'u_102',
-        title: 'نشتی آب از سقف سرویس بهداشتی',
-        description: 'از دیروز آب از سقف سرویس بهداشتی چکه می‌کند. احتمالاً از لوله‌های واحد بالایی است. لطفاً هرچه سریع‌تر رسیدگی شود.',
-        category: 'تاسیسات',
-        date: now.subtract(const Duration(hours: 8)),
-        status: RequestStatus.pending,
-      ),
-      MaintenanceRequest(
-        id: 'r_2',
-        unitId: 'u_301',
-        title: 'خرابی چراغ راه‌پله طبقه سوم',
-        description: 'چراغ راه‌پله طبقه سوم سوخته و شب‌ها تاریک است.',
-        category: 'برق',
-        date: now.subtract(const Duration(days: 1)),
-        status: RequestStatus.inProgress,
-      ),
-      MaintenanceRequest(
-        id: 'r_3',
-        unitId: 'u_401',
-        title: 'صدای غیرعادی آسانسور',
-        description: 'آسانسور شماره ۱ هنگام حرکت صدای غیرعادی می‌دهد.',
-        category: 'آسانسور',
-        date: now.subtract(const Duration(days: 3)),
-        status: RequestStatus.done,
-      ),
-      MaintenanceRequest(
-        id: 'r_4',
-        unitId: 'u_201',
-        title: 'کثیفی پارکینگ عمومی',
-        description: 'پارکینگ نیاز به نظافت اساسی دارد.',
-        category: 'نظافت',
-        date: now.subtract(const Duration(days: 5)),
-        status: RequestStatus.done,
-      ),
+      MaintenanceRequest(id: 'r_1', unitId: 'u_102', buildingId: bId, title: 'نشتی آب از سقف سرویس بهداشتی', description: 'از دیروز آب از سقف سرویس بهداشتی چکه می‌کند. احتمالاً از لوله‌های واحد بالایی است. لطفاً هرچه سریع‌تر رسیدگی شود.', category: 'تاسیسات', date: now.subtract(const Duration(hours: 8)), status: RequestStatus.pending),
+      MaintenanceRequest(id: 'r_2', unitId: 'u_301', buildingId: bId, title: 'خرابی چراغ راه‌پله طبقه سوم', description: 'چراغ راه‌پله طبقه سوم سوخته و شب‌ها تاریک است.', category: 'برق', date: now.subtract(const Duration(days: 1)), status: RequestStatus.inProgress),
+      MaintenanceRequest(id: 'r_3', unitId: 'u_401', buildingId: bId, title: 'صدای غیرعادی آسانسور', description: 'آسانسور شماره ۱ هنگام حرکت صدای غیرعادی می‌دهد.', category: 'آسانسور', date: now.subtract(const Duration(days: 3)), status: RequestStatus.done),
+      MaintenanceRequest(id: 'r_4', unitId: 'u_201', buildingId: bId, title: 'کثیفی پارکینگ عمومی', description: 'پارکینگ نیاز به نظافت اساسی دارد.', category: 'نظافت', date: now.subtract(const Duration(days: 5)), status: RequestStatus.done),
     ];
 
     bookings = [
-      Booking(
-        id: 'b_1',
-        facilityId: 'f_hall',
-        unitId: 'u_401',
-        date: now.add(const Duration(days: 3)),
-        timeSlot: '۱۸ تا ۲۰',
-      ),
-      Booking(
-        id: 'b_2',
-        facilityId: 'f_guest',
-        unitId: 'u_201',
-        date: now.add(const Duration(days: 6)),
-        timeSlot: '۱۴ تا ۱۶',
-      ),
+      Booking(id: 'b_1', facilityId: 'f_hall', unitId: 'u_401', buildingId: bId, date: now.add(const Duration(days: 3)), timeSlot: '۱۸ تا ۲۰'),
+      Booking(id: 'b_2', facilityId: 'f_guest', unitId: 'u_201', buildingId: bId, date: now.add(const Duration(days: 6)), timeSlot: '۱۴ تا ۱۶'),
     ];
   }
 
-  String _currentJalaliMonth() {
-    final j = Jalali.now();
-    return '${_monthName(j.month)} ${j.year}';
-  }
+  // ---------------- احراز هویت و جلسه ----------------
 
-  String _previousJalaliMonth() {
-    final j = Jalali.now();
-    var m = j.month - 1;
-    var y = j.year;
-    if (m == 0) {
-      m = 12;
-      y -= 1;
+  bool get isLoggedIn => currentUser != null;
+
+  User? findUserByPhone(String phone) {
+    final normalized = _normalizePhone(phone);
+    try {
+      return users.firstWhere((u) => u.phone == normalized);
+    } catch (_) {
+      return null;
     }
-    return '${_monthName(m)} $y';
   }
 
-  String _monthName(int m) => const [
-        'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
-        'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند',
-      ][m - 1];
+  String _normalizePhone(String phone) {
+    var p = phone.trim();
+    const fa = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+    const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    for (var i = 0; i < 10; i++) {
+      p = p.replaceAll(fa[i], en[i]);
+    }
+    if (p.startsWith('+98')) p = '0${p.substring(3)}';
+    if (p.startsWith('98')) p = '0${p.substring(2)}';
+    return p;
+  }
 
-  // ---------------- کوئری‌ها و اکشن‌ها ----------------
+  Future<void> signIn(User user) async {
+    currentUser = user;
+    activeBuildingId = user.buildingId;
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> signOut() async {
+    currentUser = null;
+    activeBuildingId = null;
+    await _save();
+    notifyListeners();
+  }
+
+  // ---------------- ساختمان (تننت) ----------------
+
+  Building? get currentBuilding {
+    if (activeBuildingId == null) return null;
+    try {
+      return buildings.firstWhere((b) => b.id == activeBuildingId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Building? findBuildingByInviteCode(String code) {
+    try {
+      return buildings.firstWhere(
+          (b) => b.inviteCode.toUpperCase() == code.trim().toUpperCase());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _genInviteCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final rnd = Random.secure();
+    return List.generate(6, (_) => chars[rnd.nextInt(chars.length)]).join();
+  }
+
+  /// ثبت‌نام مدیر + ایجاد ساختمان جدید + فعال‌سازی دوره آزمایشی
+  Future<Building> registerManagerAndBuilding({
+    required String managerName,
+    required String phone,
+    required String buildingName,
+    required String city,
+    required String address,
+    required int unitsCount,
+    required PlanType plan,
+  }) async {
+    final now = DateTime.now();
+    final bId = 'b_${now.millisecondsSinceEpoch}';
+
+    final building = Building(
+      id: bId,
+      name: buildingName,
+      address: address,
+      city: city,
+      unitsCount: unitsCount,
+      managerPhone: _normalizePhone(phone),
+      inviteCode: _genInviteCode(),
+      createdAt: now,
+    );
+    buildings.add(building);
+
+    final user = User(
+      id: 'usr_${now.millisecondsSinceEpoch}',
+      phone: _normalizePhone(phone),
+      fullName: managerName,
+      role: UserRole.manager,
+      buildingId: bId,
+      createdAt: now,
+    );
+    users.add(user);
+
+    subscriptions.add(Subscription(
+      id: 'sub_${now.millisecondsSinceEpoch}',
+      buildingId: bId,
+      plan: plan,
+      startedAt: now,
+      expiresAt: now.add(Duration(days: trialDays)),
+      isTrial: true,
+    ));
+
+    // ساخت واحدهای خالی اولیه بر اساس تعداد
+    final floors = (unitsCount / 4).ceil().clamp(1, 50);
+    var n = 0;
+    for (var f = 1; f <= floors && n < unitsCount; f++) {
+      for (var k = 1; k <= 4 && n < unitsCount; k++) {
+        final num = f * 100 + k;
+        units.add(Unit(
+          id: '${bId}_u_$num',
+          buildingId: bId,
+          number: num,
+          floor: f,
+          ownerName: 'واحد $num',
+          phone: '',
+          residents: 0,
+          area: 0,
+          isOccupied: false,
+          monthlyCharge: 0,
+        ));
+        n++;
+      }
+    }
+
+    currentUser = user;
+    activeBuildingId = bId;
+    await _save();
+    notifyListeners();
+    return building;
+  }
+
+  /// اتصال ساکن به ساختمان با کد دعوت
+  Future<Unit?> joinBuildingAsResident({
+    required String name,
+    required String phone,
+    required String inviteCode,
+    required int unitNumber,
+  }) async {
+    final building = findBuildingByInviteCode(inviteCode);
+    if (building == null) return null;
+
+    Unit? unit;
+    try {
+      unit = units.firstWhere(
+          (u) => u.buildingId == building.id && u.number == unitNumber);
+    } catch (_) {
+      return null;
+    }
+
+    final now = DateTime.now();
+    final user = User(
+      id: 'usr_${now.millisecondsSinceEpoch}',
+      phone: _normalizePhone(phone),
+      fullName: name,
+      role: UserRole.resident,
+      buildingId: building.id,
+      unitId: unit.id,
+      createdAt: now,
+    );
+    users.add(user);
+    currentUser = user;
+    activeBuildingId = building.id;
+    await _save();
+    notifyListeners();
+    return unit;
+  }
+
+  // ---------------- اشتراک ----------------
+
+  Subscription? get currentSubscription {
+    final bId = activeBuildingId;
+    if (bId == null) return null;
+    final list = subscriptions.where((s) => s.buildingId == bId).toList()
+      ..sort((a, b) => b.expiresAt.compareTo(a.expiresAt));
+    return list.isEmpty ? null : list.first;
+  }
+
+  Future<void> activateSubscription(PlanType plan, {String? purchaseToken}) async {
+    final bId = activeBuildingId;
+    if (bId == null) return;
+    final now = DateTime.now();
+    subscriptions.add(Subscription(
+      id: 'sub_${now.millisecondsSinceEpoch}',
+      buildingId: bId,
+      plan: plan,
+      startedAt: now,
+      expiresAt: now.add(const Duration(days: 30)),
+      isTrial: false,
+      purchaseToken: purchaseToken,
+    ));
+    await _save();
+    notifyListeners();
+  }
+
+  // ---------------- کوئری‌های واحد/شارژ (اسکوپ‌شده به ساختمان) ----------------
+
+  List<Unit> get buildingUnits =>
+      units.where((u) => u.buildingId == activeBuildingId).toList();
+
+  List<Charge> get buildingCharges {
+    final unitIds = buildingUnits.map((u) => u.id).toSet();
+    return charges.where((c) => unitIds.contains(c.unitId)).toList();
+  }
+
+  List<Notice> get buildingNotices =>
+      notices.where((n) => n.buildingId == activeBuildingId).toList();
+
+  List<MaintenanceRequest> get buildingRequests =>
+      requests.where((r) => r.buildingId == activeBuildingId).toList();
+
+  List<Booking> get buildingBookings =>
+      bookings.where((b) => b.buildingId == activeBuildingId).toList();
 
   Unit? unitById(String id) {
     try {
@@ -278,7 +466,9 @@ class AppStore extends ChangeNotifier {
     }
   }
 
-  Unit? get currentUnit => unitById(currentResidentUnitId);
+  /// واحد جاری ساکن لاگین‌شده
+  Unit? get currentUnit =>
+      currentUser?.unitId != null ? unitById(currentUser!.unitId!) : null;
 
   List<Charge> chargesOfUnit(String unitId) =>
       charges.where((c) => c.unitId == unitId).toList()
@@ -291,11 +481,12 @@ class AppStore extends ChangeNotifier {
     return list.first;
   }
 
-  List<Charge> get currentMonthCharges =>
-      charges.where((c) => c.month == _currentJalaliMonth()).toList();
+  List<Charge> get currentMonthCharges => buildingCharges
+      .where((c) => c.month == _currentJalaliMonth())
+      .toList();
 
-  int get totalUnits => units.length;
-  int get occupiedUnits => units.where((u) => u.isOccupied).length;
+  int get totalUnits => buildingUnits.length;
+  int get occupiedUnits => buildingUnits.where((u) => u.isOccupied).length;
 
   int get collectedThisMonth => currentMonthCharges
       .where((c) => c.status == ChargeStatus.paid)
@@ -308,15 +499,16 @@ class AppStore extends ChangeNotifier {
   int get overdueCount =>
       currentMonthCharges.where((c) => c.status == ChargeStatus.overdue).length;
 
-  int get openRequestsCount => requests
-      .where((r) => r.status != RequestStatus.done)
-      .length;
+  int get openRequestsCount =>
+      buildingRequests.where((r) => r.status != RequestStatus.done).length;
 
   double get collectionProgress {
     final total = currentMonthCharges.fold(0, (s, c) => s + c.amount);
     if (total == 0) return 0;
     return collectedThisMonth / total;
   }
+
+  // ---------------- اکشن‌ها ----------------
 
   Future<void> payCharge(String chargeId) async {
     final i = charges.indexWhere((c) => c.id == chargeId);
@@ -334,6 +526,7 @@ class AppStore extends ChangeNotifier {
       0,
       Notice(
         id: 'n_${DateTime.now().millisecondsSinceEpoch}',
+        buildingId: activeBuildingId ?? '',
         title: title,
         body: body,
         date: DateTime.now(),
@@ -361,6 +554,7 @@ class AppStore extends ChangeNotifier {
       MaintenanceRequest(
         id: 'r_${DateTime.now().millisecondsSinceEpoch}',
         unitId: unitId,
+        buildingId: activeBuildingId ?? '',
         title: title,
         description: description,
         category: category,
@@ -390,6 +584,7 @@ class AppStore extends ChangeNotifier {
       id: 'b_${DateTime.now().millisecondsSinceEpoch}',
       facilityId: facilityId,
       unitId: unitId,
+      buildingId: activeBuildingId ?? '',
       date: date,
       timeSlot: timeSlot,
     ));
@@ -411,5 +606,27 @@ class AppStore extends ChangeNotifier {
         b.date.month == date.month &&
         b.date.day == date.day);
   }
-}
 
+  // ---------------- تاریخ شمسی ----------------
+
+  String _currentJalaliMonth() {
+    final j = Jalali.now();
+    return '${_monthName(j.month)} ${j.year}';
+  }
+
+  String _previousJalaliMonth() {
+    final j = Jalali.now();
+    var m = j.month - 1;
+    var y = j.year;
+    if (m == 0) {
+      m = 12;
+      y -= 1;
+    }
+    return '${_monthName(m)} $y';
+  }
+
+  String _monthName(int m) => const [
+        'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
+        'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند',
+      ][m - 1];
+}

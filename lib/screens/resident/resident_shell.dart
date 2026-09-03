@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import '../settings_screen.dart';
 import 'resident_home.dart';
 import 'resident_payments.dart';
 import 'resident_requests.dart';
-import 'resident_notices.dart';
 import 'resident_booking.dart';
 
 /// شل اصلی پنل ساکن با ناوبری پایین
@@ -21,7 +21,7 @@ class _ResidentShellState extends State<ResidentShell> {
     ResidentPaymentsPage(),
     ResidentRequestsPage(),
     ResidentBookingPage(),
-    ResidentNoticesPage(),
+    SettingsScreen(),
   ];
 
   @override
@@ -53,9 +53,9 @@ class _ResidentShellState extends State<ResidentShell> {
             label: 'رزرو',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_outlined),
-            activeIcon: Icon(Icons.campaign_rounded),
-            label: 'اعلانات',
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings_rounded),
+            label: 'تنظیمات',
           ),
         ],
       ),

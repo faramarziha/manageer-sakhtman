@@ -4,11 +4,10 @@ import '../../data/app_store.dart';
 import '../../models/models.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/persian.dart';
-
+import '../settings_screen.dart';
 import 'manager_dashboard.dart';
 import 'manager_units.dart';
 import 'manager_charges.dart';
-import 'manager_notices.dart';
 import 'manager_requests.dart';
 
 /// شل اصلی پنل مدیر ساختمان با ناوبری پایین
@@ -27,7 +26,7 @@ class _ManagerShellState extends State<ManagerShell> {
     ManagerUnitsPage(),
     ManagerChargesPage(),
     ManagerRequestsPage(),
-    ManagerNoticesPage(),
+    SettingsScreen(),
   ];
 
   @override
@@ -59,9 +58,9 @@ class _ManagerShellState extends State<ManagerShell> {
             label: 'درخواست‌ها',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.campaign_outlined),
-            activeIcon: Icon(Icons.campaign_rounded),
-            label: 'اعلانات',
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings_rounded),
+            label: 'تنظیمات',
           ),
         ],
       ),

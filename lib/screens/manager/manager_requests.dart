@@ -20,7 +20,7 @@ class _ManagerRequestsPageState extends State<ManagerRequestsPage> {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    var list = [...store.requests]..sort((a, b) => b.date.compareTo(a.date));
+    var list = [...store.buildingRequests]..sort((a, b) => b.date.compareTo(a.date));
     if (_filter != null) {
       list = list.where((r) => r.status == _filter).toList();
     }

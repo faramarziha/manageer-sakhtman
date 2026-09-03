@@ -16,16 +16,16 @@ class ResidentNoticesPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('اعلانات ساختمان')),
       body: SafeArea(
-        child: store.notices.isEmpty
+        child: store.buildingNotices.isEmpty
             ? const EmptyState(
                 icon: Icons.campaign_outlined,
                 message: 'اعلانی برای نمایش وجود ندارد',
               )
             : ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: store.notices.length,
+                itemCount: store.buildingNotices.length,
                 itemBuilder: (ctx, i) {
-                  final n = store.notices[i];
+                  final n = store.buildingNotices[i];
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     child: Theme(
