@@ -4,9 +4,9 @@ import 'package:provider/provider.dart';
 import '../data/app_store.dart';
 import '../utils/app_theme.dart';
 import '../utils/persian.dart';
-import 'resident/resident_shell.dart';
+import 'membership_pending_screen.dart';
 
-/// اتصال ساکن به ساختمان با کد دعوت
+/// ثبت درخواست عضویت ساکن (مالک/مستأجر) - نیازمند تایید مدیر
 class ResidentJoinScreen extends StatefulWidget {
   final String name;
   final String phone;
@@ -27,6 +27,7 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   String? _error;
+  bool _isOwner = true; // مالک یا مستأجر
 
   @override
   void dispose() {
@@ -35,7 +36,7 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
     super.dispose();
   }
 
-  Future<void> _join() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _loading = true;
@@ -58,16 +59,17 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
       return;
     }
 
-    final unit = await store.joinBuildingAsResident(
+    final request = await store.submitMembershipRequest(
       name: widget.name,
       phone: widget.phone,
       inviteCode: _codeCtrl.text,
       unitNumber: unitNumber,
+      isOwner: _isOwner,
     );
 
     if (!mounted) return;
 
-    if (unit == null) {
+    if (request == null) {
       setState(() {
         _loading = false;
         _error = 'واحد ${Persian.digits(unitNumber)} در این ساختمان یافت نشد.';
@@ -77,7 +79,7 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
 
     setState(() => _loading = false);
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ResidentShell()),
+      MaterialPageRoute(builder: (_) => const MembershipPendingScreen()),
       (_) => false,
     );
   }
@@ -85,7 +87,7 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('اتصال به ساختمان')),
+      appBar: AppBar(title: const Text('درخواست عضویت در ساختمان')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -94,17 +96,17 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.key_rounded,
+                const Icon(Icons.how_to_reg_rounded,
                     size: 56, color: AppColors.primary),
                 const SizedBox(height: 16),
                 const Text(
-                  'کد دعوت ساختمان',
+                  'درخواست عضویت در واحد',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'کد دعوت ۶ حرفی را از مدیر ساختمان خود دریافت و وارد کنید',
+                  'درخواست شما پس از تایید مدیر ساختمان فعال می‌شود و سپس به واحد متصل خواهید شد',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
@@ -112,7 +114,7 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
                     height: 1.6,
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
                 Directionality(
                   textDirection: TextDirection.ltr,
                   child: TextFormField(
@@ -128,13 +130,14 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
                     decoration: const InputDecoration(
                       counterText: '',
                       hintText: 'MEHR24',
+                      labelText: 'کد دعوت ساختمان',
                     ),
                     validator: (v) => (v == null || v.trim().length != 6)
                         ? 'کد دعوت ۶ کاراکتری را وارد کنید'
                         : null,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _unitCtrl,
                   keyboardType: TextInputType.number,
@@ -155,6 +158,36 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
                     return n < 1 ? 'شماره واحد را وارد کنید' : null;
                   },
                 ),
+                const SizedBox(height: 16),
+                // نوع ارتباط با واحد
+                const Text(
+                  'نوع ارتباط شما با واحد:',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _RelationCard(
+                        icon: Icons.key_rounded,
+                        label: 'مالک',
+                        subtitle: 'صاحب واحد هستم',
+                        selected: _isOwner,
+                        onTap: () => setState(() => _isOwner = true),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _RelationCard(
+                        icon: Icons.home_work_rounded,
+                        label: 'مستأجر',
+                        subtitle: 'ساکن واحد هستم',
+                        selected: !_isOwner,
+                        onTap: () => setState(() => _isOwner = false),
+                      ),
+                    ),
+                  ],
+                ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
                   Container(
@@ -174,9 +207,9 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _loading ? null : _join,
+                  onPressed: _loading ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -189,10 +222,10 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
                             valueColor: AlwaysStoppedAnimation(Colors.white),
                           ),
                         )
-                      : const Text('اتصال به ساختمان',
+                      : const Text('ثبت درخواست عضویت',
                           style: TextStyle(fontSize: 16)),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -200,7 +233,7 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Text(
-                    'دمو: کد دعوت ساختمان نمونه «MEHR24» و واحد ۱۰۲ است.',
+                    'دمو: کد دعوت «MEHR24» و واحد ۱۰۲. درخواست شما در پنل مدیر در انتظار بررسی قرار می‌گیرد.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 11, color: AppColors.secondary),
                   ),
@@ -208,6 +241,65 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RelationCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RelationCard({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryLight : AppColors.background,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.divider,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon,
+                size: 26,
+                color:
+                    selected ? AppColors.primary : AppColors.textSecondary),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color:
+                    selected ? AppColors.primary : AppColors.textPrimary,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                  fontSize: 10, color: AppColors.textSecondary),
+            ),
+          ],
         ),
       ),
     );

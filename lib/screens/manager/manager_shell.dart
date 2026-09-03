@@ -6,8 +6,8 @@ import '../../utils/app_theme.dart';
 import '../../utils/persian.dart';
 import '../settings_screen.dart';
 import 'manager_dashboard.dart';
-import 'manager_units.dart';
-import 'manager_charges.dart';
+import 'manager_residents.dart';
+import 'manager_payments.dart';
 import 'manager_requests.dart';
 
 /// شل اصلی پنل مدیر ساختمان با ناوبری پایین
@@ -23,8 +23,8 @@ class _ManagerShellState extends State<ManagerShell> {
 
   final _pages = const [
     ManagerDashboard(),
-    ManagerUnitsPage(),
-    ManagerChargesPage(),
+    ManagerResidentsPage(),
+    ManagerPaymentsPage(),
     ManagerRequestsPage(),
     SettingsScreen(),
   ];
@@ -43,14 +43,14 @@ class _ManagerShellState extends State<ManagerShell> {
             label: 'داشبورد',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.apartment_outlined),
-            activeIcon: Icon(Icons.apartment_rounded),
-            label: 'واحدها',
+            icon: Icon(Icons.groups_outlined),
+            activeIcon: Icon(Icons.groups_rounded),
+            label: 'ساکنین',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.payments_outlined),
             activeIcon: Icon(Icons.payments_rounded),
-            label: 'شارژ',
+            label: 'پرداخت‌ها',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.build_outlined),

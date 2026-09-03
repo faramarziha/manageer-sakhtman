@@ -8,6 +8,7 @@ import '../utils/app_theme.dart';
 import '../utils/persian.dart';
 import '../widgets/common_widgets.dart';
 import 'manager/manager_shell.dart';
+import 'membership_pending_screen.dart';
 import 'resident/resident_shell.dart';
 import 'register_screen.dart';
 
@@ -93,7 +94,7 @@ class _OtpScreenState extends State<OtpScreen> {
       await store.signIn(existing);
       if (!mounted) return;
       setState(() => _loading = false);
-      _goHome(existing.role);
+      _goHome(existing);
     } else {
       // کاربر جدید: ثبت‌نام
       setState(() => _loading = false);
@@ -106,13 +107,18 @@ class _OtpScreenState extends State<OtpScreen> {
     }
   }
 
-  void _goHome(UserRole role) {
+  void _goHome(User user) {
+    Widget target;
+    if (user.role == UserRole.manager) {
+      target = const ManagerShell();
+    } else if (user.membershipStatus == MembershipStatus.active) {
+      target = const ResidentShell();
+    } else {
+      // ساکن بدون تایید مدیر → صفحه انتظار تایید
+      target = const MembershipPendingScreen();
+    }
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => role == UserRole.manager
-            ? const ManagerShell()
-            : const ResidentShell(),
-      ),
+      MaterialPageRoute(builder: (_) => target),
       (_) => false,
     );
   }

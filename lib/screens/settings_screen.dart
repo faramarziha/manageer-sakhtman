@@ -8,6 +8,7 @@ import '../utils/persian.dart';
 import '../widgets/common_widgets.dart';
 import 'subscription_screen.dart';
 import 'login_screen.dart';
+import 'manager/card_settings_screen.dart';
 
 /// صفحه تنظیمات و حساب کاربری
 class SettingsScreen extends StatelessWidget {
@@ -138,6 +139,43 @@ class SettingsScreen extends StatelessWidget {
                                 ClipboardData(text: building.inviteCode));
                             showSuccessSnack(context, 'کد دعوت کپی شد');
                           },
+                        ),
+                      ),
+                      const Divider(indent: 16, endIndent: 16),
+                      ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: building.hasCardInfo
+                                ? AppColors.successLight
+                                : AppColors.dangerLight,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.credit_card_rounded,
+                            color: building.hasCardInfo
+                                ? AppColors.success
+                                : AppColors.danger,
+                            size: 20,
+                          ),
+                        ),
+                        title: const Text('کارت مقصد (کارت به کارت)',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13)),
+                        subtitle: Text(
+                          building.hasCardInfo
+                              ? '${building.cardHolder} • ${Persian.digits(building.cardNumber)}'
+                              : 'ثبت نشده - برای دریافت کارت به کارت الزامی است',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        trailing: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 14,
+                            color: AppColors.textSecondary),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const CardSettingsScreen()),
                         ),
                       ),
                     ],

@@ -7,7 +7,7 @@ import '../models/models.dart';
 /// لایه داده اپلیکیشن - معماری چندساختمانی (Multi-Tenant)
 /// ذخیره‌سازی محلی با Hive - آماده اتصال به بک‌اند ابری در آینده
 class AppStore extends ChangeNotifier {
-  static const String _boxName = 'building_data_v2';
+  static const String _boxName = 'building_data_v3';
 
   // ---------------- ثابت‌ها ----------------
   static const List<Facility> facilities = [
@@ -51,6 +51,8 @@ class AppStore extends ChangeNotifier {
   List<Notice> notices = [];
   List<MaintenanceRequest> requests = [];
   List<Booking> bookings = [];
+  List<Payment> payments = [];
+  List<MembershipRequest> membershipRequests = [];
 
   // جلسه کاربر
   User? currentUser;
@@ -78,6 +80,9 @@ class AppStore extends ChangeNotifier {
     notices = _readList('notices', Notice.fromMap);
     requests = _readList('requests', MaintenanceRequest.fromMap);
     bookings = _readList('bookings', Booking.fromMap);
+    payments = _readList('payments', Payment.fromMap);
+    membershipRequests =
+        _readList('membershipRequests', MembershipRequest.fromMap);
 
     final uid = _box.get('currentUserId');
     if (uid != null) {
@@ -105,6 +110,9 @@ class AppStore extends ChangeNotifier {
     await _box.put('notices', notices.map((e) => e.toMap()).toList());
     await _box.put('requests', requests.map((e) => e.toMap()).toList());
     await _box.put('bookings', bookings.map((e) => e.toMap()).toList());
+    await _box.put('payments', payments.map((e) => e.toMap()).toList());
+    await _box.put('membershipRequests',
+        membershipRequests.map((e) => e.toMap()).toList());
     await _box.put('currentUserId', currentUser?.id);
     await _box.put('activeBuildingId', activeBuildingId);
   }
@@ -133,6 +141,8 @@ class AppStore extends ChangeNotifier {
         unitsCount: 10,
         managerPhone: '09121234567',
         inviteCode: 'MEHR24',
+        cardNumber: '6104337912345678',
+        cardHolder: 'بهنام شریفی',
         createdAt: now.subtract(const Duration(days: 90)),
       ),
     ];
@@ -144,6 +154,8 @@ class AppStore extends ChangeNotifier {
         fullName: 'مهندس بهنام شریفی',
         role: UserRole.manager,
         buildingId: bId,
+        membershipStatus: MembershipStatus.active,
+        isOwner: true,
         createdAt: now.subtract(const Duration(days: 90)),
       ),
       User(
@@ -153,6 +165,8 @@ class AppStore extends ChangeNotifier {
         role: UserRole.resident,
         buildingId: bId,
         unitId: 'u_102',
+        membershipStatus: MembershipStatus.active,
+        isOwner: false,
         createdAt: now.subtract(const Duration(days: 80)),
       ),
     ];
@@ -216,6 +230,124 @@ class AppStore extends ChangeNotifier {
         paidAt: st == ChargeStatus.paid ? now.subtract(Duration(days: i + 2)) : null,
       ));
     }
+
+    // ---------- پرداخت‌های مستقل ماه جاری (شارژ/آب/تعمیرات) ----------
+    payments = [];
+    const chargeStatuses = [
+      PaymentStatus.paid, PaymentStatus.unpaid, PaymentStatus.paid,
+      PaymentStatus.unpaid, PaymentStatus.paid, PaymentStatus.rejected,
+      PaymentStatus.paid, PaymentStatus.unpaid, PaymentStatus.paid,
+      PaymentStatus.awaitingApproval,
+    ];
+    const waterStatuses = [
+      PaymentStatus.paid, PaymentStatus.unpaid, PaymentStatus.awaitingApproval,
+      PaymentStatus.unpaid, PaymentStatus.paid, PaymentStatus.unpaid,
+      PaymentStatus.paid, PaymentStatus.paid, PaymentStatus.paid,
+      PaymentStatus.unpaid,
+    ];
+    for (var i = 0; i < units.length; i++) {
+      final u = units[i];
+      final cs = chargeStatuses[i];
+      payments.add(Payment(
+        id: 'p_charge_$i',
+        buildingId: bId,
+        unitId: u.id,
+        category: PaymentCategory.charge,
+        title: 'شارژ $currentMonth',
+        month: currentMonth,
+        amount: u.monthlyCharge,
+        status: cs,
+        method: cs == PaymentStatus.unpaid
+            ? PaymentMethod.none
+            : (i.isEven ? PaymentMethod.online : PaymentMethod.cardToCard),
+        receiptNote: cs == PaymentStatus.awaitingApproval
+            ? 'رسید کارت به کارت - ساعت ۱۴:۳۰'
+            : null,
+        rejectionReason: cs == PaymentStatus.rejected
+            ? 'مبلغ رسید با مبلغ شارژ مطابقت ندارد'
+            : null,
+        dueDate: now.add(const Duration(days: 10)),
+        paidAt: cs == PaymentStatus.paid
+            ? now.subtract(Duration(days: i + 2))
+            : null,
+        createdAt: now.subtract(const Duration(days: 5)),
+      ));
+      final ws = waterStatuses[i];
+      payments.add(Payment(
+        id: 'p_water_$i',
+        buildingId: bId,
+        unitId: u.id,
+        category: PaymentCategory.water,
+        title: 'قبض آب $currentMonth',
+        month: currentMonth,
+        amount: 120000 + (i % 4) * 35000,
+        status: ws,
+        method: ws == PaymentStatus.unpaid
+            ? PaymentMethod.none
+            : PaymentMethod.cardToCard,
+        receiptNote: ws == PaymentStatus.awaitingApproval
+            ? 'کارت به کارت انجام شد'
+            : null,
+        dueDate: now.add(const Duration(days: 8)),
+        paidAt:
+            ws == PaymentStatus.paid ? now.subtract(Duration(days: i + 3)) : null,
+        createdAt: now.subtract(const Duration(days: 4)),
+      ));
+    }
+    // هزینه تعمیرات آسانسور برای تمام واحدها
+    const repairStatuses = [
+      PaymentStatus.paid, PaymentStatus.unpaid, PaymentStatus.paid,
+      PaymentStatus.paid, PaymentStatus.unpaid, PaymentStatus.unpaid,
+      PaymentStatus.paid, PaymentStatus.paid, PaymentStatus.paid,
+      PaymentStatus.unpaid,
+    ];
+    for (var i = 0; i < units.length; i++) {
+      final u = units[i];
+      final rs = repairStatuses[i];
+      payments.add(Payment(
+        id: 'p_repair_$i',
+        buildingId: bId,
+        unitId: u.id,
+        category: PaymentCategory.repair,
+        title: 'سهم تعمیر آسانسور $currentMonth',
+        month: currentMonth,
+        amount: 250000,
+        status: rs,
+        method: rs == PaymentStatus.unpaid
+            ? PaymentMethod.none
+            : PaymentMethod.online,
+        dueDate: now.add(const Duration(days: 12)),
+        paidAt:
+            rs == PaymentStatus.paid ? now.subtract(Duration(days: i + 1)) : null,
+        createdAt: now.subtract(const Duration(days: 3)),
+      ));
+    }
+
+    // ---------- درخواست‌های عضویت نمونه ----------
+    membershipRequests = [
+      MembershipRequest(
+        id: 'mr_1',
+        userId: 'usr_pending_1',
+        userName: 'آقای سعید کاظمی',
+        userPhone: '09135557788',
+        buildingId: bId,
+        unitNumber: 302,
+        isOwner: true,
+        status: MembershipStatus.pending,
+        createdAt: now.subtract(const Duration(hours: 6)),
+      ),
+      MembershipRequest(
+        id: 'mr_2',
+        userId: 'usr_pending_2',
+        userName: 'خانم نگار مرادی',
+        userPhone: '09186664422',
+        buildingId: bId,
+        unitNumber: 502,
+        isOwner: false,
+        status: MembershipStatus.pending,
+        createdAt: now.subtract(const Duration(days: 1)),
+      ),
+    ];
 
     notices = [
       Notice(id: 'n_1', buildingId: bId, title: 'جلسه مجمع عمومی ساختمان', body: 'جلسه مجمع عمومی سالانه روز جمعه ساعت ۱۷ در سالن اجتماعات برگزار می‌شود. حضور کلیه مالکین الزامی است. دستور جلسه: بررسی صورت‌های مالی، انتخاب مدیر جدید و تصمیم‌گیری درباره نقاشی نمای ساختمان.', date: now.subtract(const Duration(hours: 5)), isImportant: true),
@@ -412,6 +544,289 @@ class AppStore extends ChangeNotifier {
     return unit;
   }
 
+  // ---------------- عضویت ساکنین (درخواست → تایید مدیر) ----------------
+
+  /// درخواست عضویت جدید - کاربر تا تایید مدیر فعال نمی‌شود
+  Future<MembershipRequest?> submitMembershipRequest({
+    required String name,
+    required String phone,
+    required String inviteCode,
+    required int unitNumber,
+    required bool isOwner,
+  }) async {
+    final building = findBuildingByInviteCode(inviteCode);
+    if (building == null) return null;
+
+    // واحد باید در ساختمان وجود داشته باشد
+    Unit? unit;
+    try {
+      unit = units.firstWhere(
+          (u) => u.buildingId == building.id && u.number == unitNumber);
+    } catch (_) {
+      return null;
+    }
+
+    final now = DateTime.now();
+    // کاربر با وضعیت pending ساخته می‌شود (بدون اتصال به واحد)
+    final user = User(
+      id: 'usr_${now.millisecondsSinceEpoch}',
+      phone: _normalizePhone(phone),
+      fullName: name,
+      role: UserRole.resident,
+      buildingId: building.id,
+      membershipStatus: MembershipStatus.pending,
+      isOwner: isOwner,
+      createdAt: now,
+    );
+    users.add(user);
+
+    final request = MembershipRequest(
+      id: 'mr_${now.millisecondsSinceEpoch}',
+      userId: user.id,
+      userName: name,
+      userPhone: _normalizePhone(phone),
+      buildingId: building.id,
+      unitNumber: unit.number,
+      isOwner: isOwner,
+      status: MembershipStatus.pending,
+      createdAt: now,
+    );
+    membershipRequests.insert(0, request);
+
+    currentUser = user;
+    activeBuildingId = building.id;
+    await _save();
+    notifyListeners();
+    return request;
+  }
+
+  /// درخواست‌های عضویت ساختمان جاری
+  List<MembershipRequest> get buildingMembershipRequests => membershipRequests
+      .where((r) => r.buildingId == activeBuildingId)
+      .toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  int get pendingMembershipCount => buildingMembershipRequests
+      .where((r) => r.status == MembershipStatus.pending)
+      .length;
+
+  /// آخرین درخواست عضویت کاربر جاری
+  MembershipRequest? get myMembershipRequest {
+    final u = currentUser;
+    if (u == null) return null;
+    final list = membershipRequests.where((r) => r.userId == u.id).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list.isEmpty ? null : list.first;
+  }
+
+  /// تایید درخواست عضویت توسط مدیر - اتصال کاربر به واحد
+  Future<void> approveMembership(String requestId) async {
+    final i = membershipRequests.indexWhere((r) => r.id == requestId);
+    if (i < 0) return;
+    final req = membershipRequests[i];
+
+    Unit? unit;
+    try {
+      unit = units.firstWhere((u) =>
+          u.buildingId == req.buildingId && u.number == req.unitNumber);
+    } catch (_) {
+      return;
+    }
+
+    membershipRequests[i] = req.copyWith(
+      status: MembershipStatus.active,
+      resolvedAt: DateTime.now(),
+    );
+
+    final ui = users.indexWhere((u) => u.id == req.userId);
+    if (ui >= 0) {
+      users[ui] = users[ui].copyWith(
+        buildingId: req.buildingId,
+        unitId: unit.id,
+        membershipStatus: MembershipStatus.active,
+      );
+      if (currentUser?.id == req.userId) currentUser = users[ui];
+    }
+    await _save();
+    notifyListeners();
+  }
+
+  /// رد درخواست عضویت
+  Future<void> rejectMembership(String requestId) async {
+    final i = membershipRequests.indexWhere((r) => r.id == requestId);
+    if (i < 0) return;
+    membershipRequests[i] = membershipRequests[i].copyWith(
+      status: MembershipStatus.rejected,
+      resolvedAt: DateTime.now(),
+    );
+    final ui =
+        users.indexWhere((u) => u.id == membershipRequests[i].userId);
+    if (ui >= 0) {
+      users[ui] = users[ui].copyWith(
+        membershipStatus: MembershipStatus.rejected,
+      );
+      if (currentUser?.id == users[ui].id) currentUser = users[ui];
+    }
+    await _save();
+    notifyListeners();
+  }
+
+  /// حذف اتصال کاربر از واحد (مدیریت ارتباط کاربر-واحد)
+  Future<void> detachUserFromUnit(String userId) async {
+    final ui = users.indexWhere((u) => u.id == userId);
+    if (ui < 0) return;
+    final u = users[ui];
+    users[ui] = User(
+      id: u.id,
+      phone: u.phone,
+      fullName: u.fullName,
+      role: u.role,
+      buildingId: u.buildingId,
+      unitId: null,
+      membershipStatus: MembershipStatus.none,
+      isOwner: u.isOwner,
+      createdAt: u.createdAt,
+    );
+    if (currentUser?.id == userId) currentUser = users[ui];
+    await _save();
+    notifyListeners();
+  }
+
+  /// اعضای فعال هر واحد
+  List<User> usersOfUnit(String unitId) => users
+      .where((u) =>
+          u.unitId == unitId && u.membershipStatus == MembershipStatus.active)
+      .toList();
+
+  // ---------------- کارت مقصد (کارت به کارت) ----------------
+
+  /// ثبت/ویرایش اطلاعات کارت مقصد توسط مدیر
+  Future<void> updateCardInfo(String cardNumber, String cardHolder) async {
+    final i = buildings.indexWhere((b) => b.id == activeBuildingId);
+    if (i < 0) return;
+    buildings[i] = buildings[i].copyWith(
+      cardNumber: cardNumber.trim(),
+      cardHolder: cardHolder.trim(),
+    );
+    await _save();
+    notifyListeners();
+  }
+
+  // ---------------- پرداخت‌های مستقل (شارژ/آب/تعمیرات/متفرقه) ----------------
+
+  /// پرداخت‌های ساختمان جاری
+  List<Payment> get buildingPayments => payments
+      .where((p) => p.buildingId == activeBuildingId)
+      .toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  /// پرداخت‌های یک واحد (جدیدترین اول)
+  List<Payment> paymentsOfUnit(String unitId) => payments
+      .where((p) => p.unitId == unitId)
+      .toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  /// پرداخت‌های ماه جاری یک واحد
+  List<Payment> currentMonthPaymentsOfUnit(String unitId) => payments
+      .where((p) =>
+          p.unitId == unitId && p.month == _currentJalaliMonth())
+      .toList()
+    ..sort((a, b) => a.category.index.compareTo(b.category.index));
+
+  /// پرداخت‌های در انتظار تایید مدیر (صف بررسی رسیدها)
+  List<Payment> get awaitingApprovalPayments => buildingPayments
+      .where((p) => p.status == PaymentStatus.awaitingApproval)
+      .toList();
+
+  /// ایجاد پرداخت جدید برای واحدهای انتخاب‌شده
+  Future<void> createPayments({
+    required PaymentCategory category,
+    required String title,
+    required int amount,
+    required List<String> unitIds,
+    String? month,
+    DateTime? dueDate,
+  }) async {
+    final now = DateTime.now();
+    final m = month ?? _currentJalaliMonth();
+    for (final uid in unitIds) {
+      payments.add(Payment(
+        id: 'p_${now.millisecondsSinceEpoch}_$uid',
+        buildingId: activeBuildingId ?? '',
+        unitId: uid,
+        category: category,
+        title: title,
+        month: m,
+        amount: amount,
+        status: PaymentStatus.unpaid,
+        dueDate: dueDate ?? now.add(const Duration(days: 10)),
+        createdAt: now,
+      ));
+    }
+    await _save();
+    notifyListeners();
+  }
+
+  /// حذف پرداخت
+  Future<void> deletePayment(String id) async {
+    payments.removeWhere((p) => p.id == id);
+    await _save();
+    notifyListeners();
+  }
+
+  /// پرداخت آنلاین (شبیه‌سازی درگاه) - مستقیم تایید می‌شود
+  Future<void> payOnline(String paymentId) async {
+    final i = payments.indexWhere((p) => p.id == paymentId);
+    if (i < 0) return;
+    payments[i] = payments[i].copyWith(
+      status: PaymentStatus.paid,
+      method: PaymentMethod.online,
+      paidAt: DateTime.now(),
+      clearRejection: true,
+    );
+    await _save();
+    notifyListeners();
+  }
+
+  /// ارسال رسید کارت به کارت توسط ساکن → در انتظار تایید مدیر
+  Future<void> submitCardToCardReceipt(String paymentId, String note) async {
+    final i = payments.indexWhere((p) => p.id == paymentId);
+    if (i < 0) return;
+    payments[i] = payments[i].copyWith(
+      status: PaymentStatus.awaitingApproval,
+      method: PaymentMethod.cardToCard,
+      receiptNote: note.trim(),
+      clearRejection: true,
+    );
+    await _save();
+    notifyListeners();
+  }
+
+  /// تایید رسید توسط مدیر → پرداخت شده
+  Future<void> approvePayment(String paymentId) async {
+    final i = payments.indexWhere((p) => p.id == paymentId);
+    if (i < 0) return;
+    payments[i] = payments[i].copyWith(
+      status: PaymentStatus.paid,
+      paidAt: DateTime.now(),
+      clearRejection: true,
+    );
+    await _save();
+    notifyListeners();
+  }
+
+  /// رد رسید توسط مدیر با دلیل → رد شده
+  Future<void> rejectPayment(String paymentId, String reason) async {
+    final i = payments.indexWhere((p) => p.id == paymentId);
+    if (i < 0) return;
+    payments[i] = payments[i].copyWith(
+      status: PaymentStatus.rejected,
+      rejectionReason: reason.trim(),
+    );
+    await _save();
+    notifyListeners();
+  }
+
   // ---------------- اشتراک ----------------
 
   Subscription? get currentSubscription {
@@ -506,6 +921,27 @@ class AppStore extends ChangeNotifier {
     final total = currentMonthCharges.fold(0, (s, c) => s + c.amount);
     if (total == 0) return 0;
     return collectedThisMonth / total;
+  }
+
+  // آمار پرداخت‌های مستقل (مدل Payment)
+  List<Payment> get currentMonthPayments => buildingPayments
+      .where((p) => p.month == _currentJalaliMonth())
+      .toList();
+
+  int get paidPaymentsSum => currentMonthPayments
+      .where((p) => p.status == PaymentStatus.paid)
+      .fold(0, (s, p) => s + p.amount);
+
+  int get unpaidPaymentsSum => currentMonthPayments
+      .where((p) =>
+          p.status == PaymentStatus.unpaid ||
+          p.status == PaymentStatus.rejected)
+      .fold(0, (s, p) => s + p.amount);
+
+  double get paymentCollectionProgress {
+    final total = currentMonthPayments.fold(0, (s, p) => s + p.amount);
+    if (total == 0) return 0;
+    return paidPaymentsSum / total;
   }
 
   // ---------------- اکشن‌ها ----------------

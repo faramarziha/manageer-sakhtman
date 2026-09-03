@@ -1,6 +1,18 @@
 /// نقش کاربر در سیستم
 enum UserRole { manager, resident }
 
+/// وضعیت عضویت کاربر در واحد
+enum MembershipStatus { none, pending, active, rejected }
+
+extension MembershipStatusX on MembershipStatus {
+  String get label => switch (this) {
+        MembershipStatus.none => 'بدون عضویت',
+        MembershipStatus.pending => 'در انتظار تایید مدیر',
+        MembershipStatus.active => 'عضو فعال',
+        MembershipStatus.rejected => 'رد شده',
+      };
+}
+
 /// کاربر اپلیکیشن
 class User {
   final String id;
@@ -9,6 +21,8 @@ class User {
   final UserRole role;
   final String? buildingId;  // ساختمانی که به آن متصل است
   final String? unitId;      // واحد ساکن (فقط برای resident)
+  final MembershipStatus membershipStatus;
+  final bool isOwner;        // مالک یا مستاجر
   final DateTime createdAt;
 
   const User({
@@ -18,16 +32,25 @@ class User {
     required this.role,
     this.buildingId,
     this.unitId,
+    this.membershipStatus = MembershipStatus.none,
+    this.isOwner = false,
     required this.createdAt,
   });
 
-  User copyWith({String? buildingId, String? unitId}) => User(
+  User copyWith({
+    String? buildingId,
+    String? unitId,
+    MembershipStatus? membershipStatus,
+  }) =>
+      User(
         id: id,
         phone: phone,
         fullName: fullName,
         role: role,
         buildingId: buildingId ?? this.buildingId,
         unitId: unitId ?? this.unitId,
+        membershipStatus: membershipStatus ?? this.membershipStatus,
+        isOwner: isOwner,
         createdAt: createdAt,
       );
 
@@ -38,6 +61,8 @@ class User {
         'role': role.index,
         'buildingId': buildingId,
         'unitId': unitId,
+        'membershipStatus': membershipStatus.index,
+        'isOwner': isOwner,
         'createdAt': createdAt.millisecondsSinceEpoch,
       };
 
@@ -48,7 +73,78 @@ class User {
         role: UserRole.values[m['role']],
         buildingId: m['buildingId'],
         unitId: m['unitId'],
+        membershipStatus: MembershipStatus.values[m['membershipStatus'] ?? 2],
+        isOwner: m['isOwner'] ?? false,
         createdAt: DateTime.fromMillisecondsSinceEpoch(m['createdAt']),
+      );
+}
+
+/// درخواست عضویت ساکن در واحد (مالک یا مستاجر)
+class MembershipRequest {
+  final String id;
+  final String userId;
+  final String userName;
+  final String userPhone;
+  final String buildingId;
+  final int unitNumber;
+  final bool isOwner; // true = مالک، false = مستاجر
+  final MembershipStatus status;
+  final DateTime createdAt;
+  final DateTime? resolvedAt;
+
+  const MembershipRequest({
+    required this.id,
+    required this.userId,
+    required this.userName,
+    required this.userPhone,
+    required this.buildingId,
+    required this.unitNumber,
+    required this.isOwner,
+    required this.status,
+    required this.createdAt,
+    this.resolvedAt,
+  });
+
+  MembershipRequest copyWith({MembershipStatus? status, DateTime? resolvedAt}) =>
+      MembershipRequest(
+        id: id,
+        userId: userId,
+        userName: userName,
+        userPhone: userPhone,
+        buildingId: buildingId,
+        unitNumber: unitNumber,
+        isOwner: isOwner,
+        status: status ?? this.status,
+        createdAt: createdAt,
+        resolvedAt: resolvedAt ?? this.resolvedAt,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'userId': userId,
+        'userName': userName,
+        'userPhone': userPhone,
+        'buildingId': buildingId,
+        'unitNumber': unitNumber,
+        'isOwner': isOwner,
+        'status': status.index,
+        'createdAt': createdAt.millisecondsSinceEpoch,
+        'resolvedAt': resolvedAt?.millisecondsSinceEpoch,
+      };
+
+  factory MembershipRequest.fromMap(Map m) => MembershipRequest(
+        id: m['id'],
+        userId: m['userId'],
+        userName: m['userName'],
+        userPhone: m['userPhone'],
+        buildingId: m['buildingId'],
+        unitNumber: m['unitNumber'],
+        isOwner: m['isOwner'],
+        status: MembershipStatus.values[m['status']],
+        createdAt: DateTime.fromMillisecondsSinceEpoch(m['createdAt']),
+        resolvedAt: m['resolvedAt'] != null
+            ? DateTime.fromMillisecondsSinceEpoch(m['resolvedAt'])
+            : null,
       );
 }
 
@@ -175,6 +271,8 @@ class Building {
   final int unitsCount;
   final String managerPhone;
   final String inviteCode;   // کد دعوت ساکنین
+  final String cardNumber;   // شماره کارت مقصد برای کارت به کارت
+  final String cardHolder;   // نام صاحب کارت
   final DateTime createdAt;
 
   const Building({
@@ -185,8 +283,25 @@ class Building {
     required this.unitsCount,
     required this.managerPhone,
     required this.inviteCode,
+    this.cardNumber = '',
+    this.cardHolder = '',
     required this.createdAt,
   });
+
+  bool get hasCardInfo => cardNumber.isNotEmpty && cardHolder.isNotEmpty;
+
+  Building copyWith({String? cardNumber, String? cardHolder}) => Building(
+        id: id,
+        name: name,
+        address: address,
+        city: city,
+        unitsCount: unitsCount,
+        managerPhone: managerPhone,
+        inviteCode: inviteCode,
+        cardNumber: cardNumber ?? this.cardNumber,
+        cardHolder: cardHolder ?? this.cardHolder,
+        createdAt: createdAt,
+      );
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -196,6 +311,8 @@ class Building {
         'unitsCount': unitsCount,
         'managerPhone': managerPhone,
         'inviteCode': inviteCode,
+        'cardNumber': cardNumber,
+        'cardHolder': cardHolder,
         'createdAt': createdAt.millisecondsSinceEpoch,
       };
 
@@ -207,6 +324,8 @@ class Building {
         unitsCount: m['unitsCount'],
         managerPhone: m['managerPhone'],
         inviteCode: m['inviteCode'],
+        cardNumber: m['cardNumber'] ?? '',
+        cardHolder: m['cardHolder'] ?? '',
         createdAt: DateTime.fromMillisecondsSinceEpoch(m['createdAt']),
       );
 }
@@ -429,6 +548,145 @@ class MaintenanceRequest {
         category: m['category'],
         date: DateTime.fromMillisecondsSinceEpoch(m['date']),
         status: RequestStatus.values[m['status']],
+      );
+}
+
+/// دسته‌بندی پرداخت
+enum PaymentCategory { charge, water, repair, other }
+
+extension PaymentCategoryX on PaymentCategory {
+  String get label => switch (this) {
+        PaymentCategory.charge => 'شارژ ساختمان',
+        PaymentCategory.water => 'آب',
+        PaymentCategory.repair => 'تعمیرات',
+        PaymentCategory.other => 'هزینه متفرقه',
+      };
+
+  String get emoji => switch (this) {
+        PaymentCategory.charge => '🏢',
+        PaymentCategory.water => '💧',
+        PaymentCategory.repair => '🔧',
+        PaymentCategory.other => '📋',
+      };
+}
+
+/// وضعیت پرداخت
+enum PaymentStatus { unpaid, awaitingApproval, paid, rejected }
+
+extension PaymentStatusX on PaymentStatus {
+  String get label => switch (this) {
+        PaymentStatus.unpaid => 'پرداخت نشده',
+        PaymentStatus.awaitingApproval => 'در انتظار تایید مدیر',
+        PaymentStatus.paid => 'تایید شده',
+        PaymentStatus.rejected => 'رد شده',
+      };
+}
+
+/// روش پرداخت
+enum PaymentMethod { none, online, cardToCard }
+
+extension PaymentMethodX on PaymentMethod {
+  String get label => switch (this) {
+        PaymentMethod.none => '-',
+        PaymentMethod.online => 'پرداخت آنلاین',
+        PaymentMethod.cardToCard => 'کارت به کارت',
+      };
+}
+
+/// یک پرداخت مستقل (شارژ، آب، تعمیرات و...)
+class Payment {
+  final String id;
+  final String buildingId;
+  final String unitId;
+  final PaymentCategory category;
+  final String title;        // عنوان پرداخت (مثلا «شارژ شهریور»)
+  final String month;        // دوره/ماه شمسی
+  final int amount;
+  final PaymentStatus status;
+  final PaymentMethod method;
+  final String? receiptNote; // توضیح رسید ارسالی ساکن
+  final String? rejectionReason; // دلیل رد توسط مدیر
+  final DateTime dueDate;
+  final DateTime? paidAt;
+  final DateTime createdAt;
+
+  const Payment({
+    required this.id,
+    required this.buildingId,
+    required this.unitId,
+    required this.category,
+    required this.title,
+    required this.month,
+    required this.amount,
+    required this.status,
+    this.method = PaymentMethod.none,
+    this.receiptNote,
+    this.rejectionReason,
+    required this.dueDate,
+    this.paidAt,
+    required this.createdAt,
+  });
+
+  Payment copyWith({
+    PaymentStatus? status,
+    PaymentMethod? method,
+    String? receiptNote,
+    String? rejectionReason,
+    DateTime? paidAt,
+    bool clearRejection = false,
+  }) =>
+      Payment(
+        id: id,
+        buildingId: buildingId,
+        unitId: unitId,
+        category: category,
+        title: title,
+        month: month,
+        amount: amount,
+        status: status ?? this.status,
+        method: method ?? this.method,
+        receiptNote: receiptNote ?? this.receiptNote,
+        rejectionReason:
+            clearRejection ? null : (rejectionReason ?? this.rejectionReason),
+        dueDate: dueDate,
+        paidAt: paidAt ?? this.paidAt,
+        createdAt: createdAt,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'buildingId': buildingId,
+        'unitId': unitId,
+        'category': category.index,
+        'title': title,
+        'month': month,
+        'amount': amount,
+        'status': status.index,
+        'method': method.index,
+        'receiptNote': receiptNote,
+        'rejectionReason': rejectionReason,
+        'dueDate': dueDate.millisecondsSinceEpoch,
+        'paidAt': paidAt?.millisecondsSinceEpoch,
+        'createdAt': createdAt.millisecondsSinceEpoch,
+      };
+
+  factory Payment.fromMap(Map m) => Payment(
+        id: m['id'],
+        buildingId: m['buildingId'] ?? '',
+        unitId: m['unitId'],
+        category: PaymentCategory.values[m['category']],
+        title: m['title'],
+        month: m['month'],
+        amount: m['amount'],
+        status: PaymentStatus.values[m['status']],
+        method: PaymentMethod.values[m['method'] ?? 0],
+        receiptNote: m['receiptNote'],
+        rejectionReason: m['rejectionReason'],
+        dueDate: DateTime.fromMillisecondsSinceEpoch(m['dueDate']),
+        paidAt: m['paidAt'] != null
+            ? DateTime.fromMillisecondsSinceEpoch(m['paidAt'])
+            : null,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(m['createdAt']),
       );
 }
 

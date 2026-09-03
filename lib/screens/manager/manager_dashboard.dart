@@ -14,7 +14,7 @@ class ManagerDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final progress = store.collectionProgress;
+    final progress = store.paymentCollectionProgress;
     final building = store.currentBuilding;
     final sub = store.currentSubscription;
 
@@ -69,7 +69,7 @@ class ManagerDashboard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'وصول شارژ ${Persian.currentMonthName()}',
+                          'وصول پرداخت‌های ${Persian.currentMonthName()}',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -77,7 +77,7 @@ class ManagerDashboard extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          Persian.toman(store.collectedThisMonth),
+                          Persian.toman(store.paidPaymentsSum),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 22,
@@ -86,7 +86,7 @@ class ManagerDashboard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'مانده: ${Persian.toman(store.pendingThisMonth)}',
+                          'مانده: ${Persian.toman(store.unpaidPaymentsSum)}',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 12,
@@ -141,10 +141,16 @@ class ManagerDashboard extends StatelessWidget {
                   color: AppColors.primary,
                 ),
                 StatCard(
-                  icon: Icons.warning_amber_rounded,
-                  title: 'شارژهای معوقه',
-                  value: '${Persian.digits(store.overdueCount)} واحد',
+                  icon: Icons.fact_check_outlined,
+                  title: 'رسیدهای در انتظار',
+                  value: Persian.digits(store.awaitingApprovalPayments.length),
                   color: AppColors.danger,
+                ),
+                StatCard(
+                  icon: Icons.how_to_reg_rounded,
+                  title: 'درخواست‌های عضویت',
+                  value: Persian.digits(store.pendingMembershipCount),
+                  color: AppColors.accent,
                 ),
                 StatCard(
                   icon: Icons.build_rounded,

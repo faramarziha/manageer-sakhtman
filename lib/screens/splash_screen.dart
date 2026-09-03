@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../utils/app_theme.dart';
 import 'login_screen.dart';
 import 'manager/manager_shell.dart';
+import 'membership_pending_screen.dart';
 import 'resident/resident_shell.dart';
 
 /// صفحه آغازین - تصمیم‌گیری بر اساس وضعیت جلسه کاربر
@@ -41,9 +42,15 @@ class _SplashScreenState extends State<SplashScreen>
 
     Widget target;
     if (store.isLoggedIn && store.activeBuildingId != null) {
-      target = store.currentUser!.role == UserRole.manager
-          ? const ManagerShell()
-          : const ResidentShell();
+      final user = store.currentUser!;
+      if (user.role == UserRole.manager) {
+        target = const ManagerShell();
+      } else if (user.membershipStatus == MembershipStatus.active) {
+        target = const ResidentShell();
+      } else {
+        // ساکن بدون تایید مدیر → صفحه انتظار
+        target = const MembershipPendingScreen();
+      }
     } else {
       target = const LoginScreen();
     }
