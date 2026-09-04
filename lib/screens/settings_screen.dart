@@ -201,7 +201,7 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   title: Text(
                     sub != null
-                        ? 'طرح ${sub.plan.name}${sub.isTrial ? ' (آزمایشی)' : ''}'
+                        ? 'طرح ${sub.plan.name}${sub.isPerpetual ? ' (همیشگی)' : ''}'
                         : 'بدون اشتراک',
                     style: const TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 14),

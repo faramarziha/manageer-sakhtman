@@ -18,6 +18,25 @@ class Persian {
     return out;
   }
 
+  /// تبدیل ارقام فارسی/عربی به انگلیسی (برای پارس ورودی کاربر)
+  static String toEnglishDigits(String input) {
+    const fa = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+    const ar = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    var out = input;
+    for (var i = 0; i < 10; i++) {
+      out = out.replaceAll(fa[i], '$i').replaceAll(ar[i], '$i');
+    }
+    return out.replaceAll(',', '').replaceAll('،', '').trim();
+  }
+
+  /// پارس عدد صحیح از ورودی فارسی
+  static int? parseInt(String input) =>
+      int.tryParse(toEnglishDigits(input));
+
+  /// پارس عدد اعشاری از ورودی فارسی
+  static double? parseDouble(String input) =>
+      double.tryParse(toEnglishDigits(input));
+
   /// قالب‌بندی مبلغ به تومان با جداکننده هزارگان و ارقام فارسی
   static String toman(num amount) {
     final formatted = addCommas(amount.round());

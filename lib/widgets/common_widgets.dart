@@ -62,13 +62,15 @@ class StatCard extends StatelessWidget {
 class StatusChip extends StatelessWidget {
   final String label;
   final Color color;
-  final Color bgColor;
+
+  /// در صورت عدم تعیین، از روی [color] با شفافیت کم ساخته می‌شود.
+  final Color? bgColor;
 
   const StatusChip({
     super.key,
     required this.label,
     required this.color,
-    required this.bgColor,
+    this.bgColor,
   });
 
   @override
@@ -76,7 +78,7 @@ class StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: bgColor ?? color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

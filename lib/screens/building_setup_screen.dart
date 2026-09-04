@@ -28,7 +28,7 @@ class _BuildingSetupScreenState extends State<BuildingSetupScreen> {
   final _addressCtrl = TextEditingController();
   final _unitsCtrl = TextEditingController(text: '10');
   String _city = AppStore.iranianCities.first;
-  PlanType _plan = PlanType.pro;
+  PlanType _plan = PlanType.free;
   bool _loading = false;
 
   @override
@@ -319,7 +319,7 @@ class _PlanOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPro = plan == PlanType.pro;
+    final isPro = plan == PlanType.comprehensive;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InkWell(

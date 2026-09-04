@@ -71,7 +71,7 @@ class _ManagerShellState extends State<ManagerShell> {
 /// دیالوگ جزئیات واحد برای مدیر
 void showUnitDetailDialog(BuildContext context, Unit unit) {
   final store = context.read<AppStore>();
-  final charge = store.currentChargeOfUnit(unit.id);
+  final charge = store.currentPeriodInvoicesOfUnit(unit.id).firstOrNull;
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -83,7 +83,7 @@ void showUnitDetailDialog(BuildContext context, Unit unit) {
           _detailRow(Icons.person, 'مالک', unit.ownerName),
           _detailRow(Icons.phone, 'تماس', Persian.digits(unit.phone)),
           _detailRow(Icons.straighten, 'متراژ', '${Persian.digits(unit.area)} متر مربع'),
-          _detailRow(Icons.people, 'ساکنین', '${Persian.digits(unit.residents)} نفر'),
+          _detailRow(Icons.people, 'ساکنین', '${Persian.digits(unit.residentCount)} نفر'),
           _detailRow(
             unit.isOccupied ? Icons.home : Icons.home_outlined,
             'وضعیت سکونت',
@@ -92,7 +92,7 @@ void showUnitDetailDialog(BuildContext context, Unit unit) {
           if (charge != null)
             _detailRow(
               Icons.payments,
-              'شارژ ${charge.month}',
+              'شارژ ${charge.period}',
               '${Persian.toman(charge.amount)} • ${charge.status.label}',
             ),
         ],
