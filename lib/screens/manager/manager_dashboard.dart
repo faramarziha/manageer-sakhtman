@@ -14,7 +14,7 @@ class ManagerDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = context.watch<AppStore>();
-    final progress = store.paymentCollectionProgress;
+    final progress = store.collectionProgress;
     final building = store.currentBuilding;
     final sub = store.currentSubscription;
 
@@ -47,7 +47,7 @@ class ManagerDashboard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             // بنر دوره آزمایشی
-            if (sub != null && sub.isTrial && sub.isActive) ...[
+            if (sub != null && sub.isExpiringSoon) ...[
               _TrialBanner(daysLeft: sub.daysLeft),
               const SizedBox(height: 16),
             ],
@@ -77,7 +77,7 @@ class ManagerDashboard extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          Persian.toman(store.paidPaymentsSum),
+                          Persian.toman(store.collectedThisPeriod),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 22,
@@ -86,7 +86,7 @@ class ManagerDashboard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'مانده: ${Persian.toman(store.unpaidPaymentsSum)}',
+                          'مانده: ${Persian.toman(store.pendingThisPeriod)}',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 12,
@@ -143,7 +143,7 @@ class ManagerDashboard extends StatelessWidget {
                 StatCard(
                   icon: Icons.fact_check_outlined,
                   title: 'رسیدهای در انتظار',
-                  value: Persian.digits(store.awaitingApprovalPayments.length),
+                  value: Persian.digits(store.awaitingApprovalCount),
                   color: AppColors.danger,
                 ),
                 StatCard(

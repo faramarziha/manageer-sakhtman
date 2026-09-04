@@ -359,7 +359,7 @@ class _UnitMembersTile extends StatelessWidget {
                         ),
                         Text(
                           unit.isOccupied
-                              ? '${Persian.digits(unit.residents)} نفر ساکن'
+                              ? '${Persian.digits(unit.residentCount)} نفر ساکن'
                               : 'خالی',
                           style: const TextStyle(
                               fontSize: 11,

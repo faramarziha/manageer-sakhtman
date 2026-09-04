@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../data/app_store.dart';
+import '../models/models.dart';
 import '../utils/app_theme.dart';
 import '../utils/persian.dart';
 import 'membership_pending_screen.dart';
@@ -64,7 +65,7 @@ class _ResidentJoinScreenState extends State<ResidentJoinScreen> {
       phone: widget.phone,
       inviteCode: _codeCtrl.text,
       unitNumber: unitNumber,
-      isOwner: _isOwner,
+      requestedRole: _isOwner ? UnitRole.owner : UnitRole.tenant,
     );
 
     if (!mounted) return;
